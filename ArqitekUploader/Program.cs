@@ -67,8 +67,8 @@ internal class Program
 			foreach (var item in (from path in config.folds where path is not null select path))
 			{
 				if (config.name is null)
-					File.Copy("version.txt", item, true);
-				else File.Copy("version.txt", Path.Combine(item, config.name), true);
+					File.Copy("version.txt", Path.Combine(item, "version.txt"), true);
+				else File.Copy("version.txt", Path.Combine(item, config.name, "version.txt"), true);
 			}
 			
 		}
