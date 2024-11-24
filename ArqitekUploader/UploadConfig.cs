@@ -25,6 +25,12 @@ namespace ArqitekUploader
 		[Key(3)]
 		public string? webhook;
 
+		[Key(4)]
+		public string? message;
+
+		[Key(5)]
+		public bool versioning;
+
 		public static UploadConfig FromFile(string file)
 		{
 			if (!File.Exists(file)) throw new FileNotFoundException();
@@ -50,6 +56,8 @@ namespace ArqitekUploader
 			string?[] folds = new string?[3];
 			string?[] archives = new string?[3];
 			string? webhook;
+			string? message;
+			bool versioning = false;
 
 			Console.Write("Project Name: ");
 			name = Console.ReadLine();
@@ -75,7 +83,15 @@ namespace ArqitekUploader
 			Console.Write("Webhook URL: ");
 			webhook = Console.ReadLine();
 
-			return new UploadConfig { name = name, folds = folds, archives = archives, webhook = webhook };
+			Console.Write("Update Message (<version> for version)");
+			message = Console.ReadLine();
+
+			Console.Write("Version System (y or n (default n)): ");
+			var buffer = Console.ReadLine();
+			if (buffer?.ToLower() == "y") versioning = true;
+
+			return new UploadConfig { name = name, folds = folds, archives = archives, webhook = webhook, message = message, versioning = versioning };
 		}
+		
 	}
 }
