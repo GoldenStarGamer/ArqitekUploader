@@ -8,8 +8,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Google.Apis.Drive.v3" Version="1.68.0.3601" />
-    <PackageReference Include="MessagePack" Version="2.5.192" />
+    <PackageReference Include="Google.Apis.Drive.v3" Version="1.68.0.3627" />
+    <PackageReference Include="MessagePack" Version="3.1.1" />
     <PackageReference Include="SharpCompress" Version="0.38.0" />
   </ItemGroup>
 

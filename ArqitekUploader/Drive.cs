@@ -1,16 +1,8 @@
 ﻿using Google.Apis.Auth.OAuth2;
-using Google.Apis.Auth.OAuth2.Flows;
-using Google.Apis.Auth.OAuth2.Responses;
 using Google.Apis.Drive.v3;
-using Google.Apis.Drive.v3.Data;
 using Google.Apis.Services;
 using Google.Apis.Upload;
 using Google.Apis.Util.Store;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace ArqitekUploader
 {
@@ -24,17 +16,41 @@ namespace ArqitekUploader
 
 		private static UserCredential Auth()
 		{
-			if (!System.IO.File.Exists("client_id.json")) throw new FileNotFoundException("client id not found");
+			if (!System.IO.File.Exists("client_id.json"))
+				throw new FileNotFoundException("client_id.json not found");
 
 			using (var stream = new FileStream("client_id.json", FileMode.Open, FileAccess.Read))
 			{
+				try
+				{
+					var credential = GoogleWebAuthorizationBroker.AuthorizeAsync(
+						GoogleClientSecrets.FromStream(stream).Secrets,
+						new[] { DriveService.Scope.Drive },
+						"user",
+						CancellationToken.None,
+						new FileDataStore(Path.Combine("aqtk", "kreda"))
+					).Result;
 
-				return GoogleWebAuthorizationBroker.AuthorizeAsync(
-					GoogleClientSecrets.FromStream(stream).Secrets,
-					[DriveService.Scope.Drive],
-					"user",
-					CancellationToken.None,
-					new FileDataStore(Path.Combine("aqtk", "kreda"))).Result;
+					// Check if the token is expired and refresh if necessary
+					if (credential.Token.IsStale)
+					{
+						// Try to refresh the token
+						bool refreshed = credential.RefreshTokenAsync(CancellationToken.None).Result;
+
+						if (!refreshed)
+						{
+							// If refresh fails, reauthorize
+							throw new Exception("Token refresh failed. Reauthorization required.");
+						}
+					}
+
+					return credential;
+				}
+				catch (AggregateException ex)
+				{
+					// Handle token refresh or authorization failure
+					throw new Exception("Authorization failed. Ensure client_id.json is correct.", ex);
+				}
 			}
 		}
 

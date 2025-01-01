@@ -1,11 +1,4 @@
 ﻿using MessagePack;
-using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Linq;
-using System.Runtime.Serialization;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace ArqitekUploader
 {
@@ -92,6 +85,6 @@ namespace ArqitekUploader
 
 			return new UploadConfig { name = name, folds = folds, archives = archives, webhook = webhook, message = message, versioning = versioning };
 		}
-		
+
 	}
 }

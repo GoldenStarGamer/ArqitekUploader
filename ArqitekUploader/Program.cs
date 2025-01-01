@@ -1,8 +1,5 @@
 ﻿using ArqitekUploader;
 using System.Data;
-using System.Runtime.CompilerServices;
-using System.Security.AccessControl;
-using System.Security.Cryptography;
 using System.Text;
 
 internal class Program
@@ -26,7 +23,7 @@ internal class Program
 			{
 				filepath = Console.ReadLine();
 			}
-			
+
 			if (filepath is "$new")
 			{
 				config = UploadConfig.CreateConfig();
@@ -35,7 +32,7 @@ internal class Program
 			else
 			{
 				config = UploadConfig.FromFile(filepath);
-			}	
+			}
 		}
 		else
 		{
@@ -46,7 +43,7 @@ internal class Program
 
 		if (config.versioning)
 		{
-			
+
 			using (var drive = new Drive())
 			{
 				if (drive.FileExists("version.txt"))
@@ -70,13 +67,13 @@ internal class Program
 					File.Copy("version.txt", Path.Combine(item, "version.txt"), true);
 				else File.Copy("version.txt", Path.Combine(item, config.name, "version.txt"), true);
 			}
-			
+
 		}
 
 		List<Archive> archives = [];
 		for (int i = 0; i < 3; i++)
 		{
-			if(config.folds[i] is not null && config.archives[i] is not null)
+			if (!string.IsNullOrEmpty(config.folds[i]) && !string.IsNullOrEmpty(config.archives[i]))
 			{
 				archives.Add(new(config.folds[i]!, config.archives[i]!));
 			}
@@ -97,7 +94,7 @@ internal class Program
 			tasks.Clear();
 			for (int i = 0; i < 3; i++)
 			{
-				if (config.archives[i] is not null)
+				if (!string.IsNullOrEmpty(config.archives[i]))
 				{
 					if (config.name is not null)
 						tasks.Add(drive.UploadFile(config.archives[i]!, "application/x-zip", drive.FindItem(config.name, true, true), Enprint));
@@ -108,8 +105,8 @@ internal class Program
 		}
 
 		clear();
-		if (config.webhook is not null and not "")
-		SendWebhookMessage(config.webhook, config.message is null or "" ? (version is null or "" ? "A new version has been released" : "Version <version> has been released") : config.message , version ?? "").Wait();
+		if (!string.IsNullOrEmpty(config.webhook))
+			SendWebhookMessage(config.webhook, string.IsNullOrEmpty(config.message) ? (string.IsNullOrEmpty(version) ? "A new version has been released" : "Version <version> has been released") : config.message, version ?? string.Empty).Wait();
 
 		clear();
 		Console.WriteLine("Upload Complete");
@@ -130,7 +127,7 @@ internal class Program
 		{
 			lock (Arlines)
 			{
-				Arlines.Add(self, Arlines.Count+1);
+				Arlines.Add(self, Arlines.Count + 1);
 			}
 		}
 		lock (locker)

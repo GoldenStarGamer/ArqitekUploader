@@ -1,16 +1,10 @@
 ﻿using SharpCompress.Archives;
-using SharpCompress.Archives.SevenZip;
 using SharpCompress.Archives.Zip;
 using SharpCompress.Common;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace ArqitekUploader
 {
-	
+
 	public class Archive
 	{
 		public delegate void OnProgressChanged(float progress, Archive self);
@@ -74,7 +68,7 @@ namespace ArqitekUploader
 				// Save the archive after all files have been added
 				zip.SaveTo(archive, CompressionType.Deflate);
 			}
-			
+
 		}
 
 	}
