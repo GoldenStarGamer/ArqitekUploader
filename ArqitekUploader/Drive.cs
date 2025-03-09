@@ -8,49 +8,47 @@ namespace ArqitekUploader
 {
 	internal class Drive : IDisposable
 	{
-		UserCredential credential = Auth();
+		readonly UserCredential credential = Auth();
 
-		DriveService service;
+		readonly DriveService service;
 
 		public delegate void OnProgressChanged(float progress, string filename);
 
 		private static UserCredential Auth()
 		{
-			if (!System.IO.File.Exists("client_id.json"))
+			if (!File.Exists("client_id.json"))
 				throw new FileNotFoundException("client_id.json not found");
 
-			using (var stream = new FileStream("client_id.json", FileMode.Open, FileAccess.Read))
+			using var stream = new FileStream("client_id.json", FileMode.Open, FileAccess.Read);
+			try
 			{
-				try
-				{
-					var credential = GoogleWebAuthorizationBroker.AuthorizeAsync(
-						GoogleClientSecrets.FromStream(stream).Secrets,
-						new[] { DriveService.Scope.Drive },
-						"user",
-						CancellationToken.None,
-						new FileDataStore(Path.Combine("aqtk", "kreda"))
-					).Result;
+				var credential = GoogleWebAuthorizationBroker.AuthorizeAsync(
+					GoogleClientSecrets.FromStream(stream).Secrets,
+					[DriveService.Scope.Drive],
+					"user",
+					CancellationToken.None,
+					new FileDataStore(Path.Combine("aqtk", "kreda"))
+				).Result;
 
-					// Check if the token is expired and refresh if necessary
-					if (credential.Token.IsStale)
+				// Check if the token is expired and refresh if necessary
+				if (credential.Token.IsStale)
+				{
+					// Try to refresh the token
+					bool refreshed = credential.RefreshTokenAsync(CancellationToken.None).Result;
+
+					if (!refreshed)
 					{
-						// Try to refresh the token
-						bool refreshed = credential.RefreshTokenAsync(CancellationToken.None).Result;
-
-						if (!refreshed)
-						{
-							// If refresh fails, reauthorize
-							throw new Exception("Token refresh failed. Reauthorization required.");
-						}
+						// If refresh fails, reauthorize
+						throw new Exception("Token refresh failed. Reauthorization required.");
 					}
+				}
 
-					return credential;
-				}
-				catch (AggregateException ex)
-				{
-					// Handle token refresh or authorization failure
-					throw new Exception("Authorization failed. Ensure client_id.json is correct.", ex);
-				}
+				return credential;
+			}
+			catch (AggregateException ex)
+			{
+				// Handle token refresh or authorization failure
+				throw new Exception("Authorization failed. Ensure client_id.json is correct.", ex);
 			}
 		}
 
@@ -58,14 +56,12 @@ namespace ArqitekUploader
 		{
 			await Task.Run(() =>
 			{
-				// Ensure the file exists locally
-				if (!System.IO.File.Exists(filePath))
+				if (!File.Exists(filePath))
 					throw new FileNotFoundException($"File not found: {filePath}");
 
-				// Get the file name
 				string fileName = Path.GetFileName(filePath);
 
-				// Search for existing file with the same name in the specified folder
+				// Search for an existing file with the same name
 				var searchRequest = service.Files.List();
 				searchRequest.Q = $"name = '{fileName}' and trashed = false";
 				if (!string.IsNullOrEmpty(folderId))
@@ -77,39 +73,29 @@ namespace ArqitekUploader
 				var searchResult = searchRequest.Execute();
 				var existingFile = searchResult.Files.FirstOrDefault();
 
-				// If the file exists, delete it
+				using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read);
+
 				if (existingFile != null)
 				{
-					service.Files.Delete(existingFile.Id).Execute();
-				}
+					// Prepare metadata
+					var fileMetadata = new Google.Apis.Drive.v3.Data.File
+					{
+						Name = fileName,
+					};
 
-				// Create a new file metadata
-				var fileMetadata = new Google.Apis.Drive.v3.Data.File
-				{
-					Name = fileName
-				};
+					// File exists, update it
+					var uploadRequest = service.Files.Update(fileMetadata, existingFile.Id, stream, mimeType);
 
-				// Add the folder ID to the metadata if specified
-				if (!string.IsNullOrEmpty(folderId))
-				{
-					fileMetadata.Parents = new List<string> { folderId };
-				}
-
-				// Upload the file
-				using (var stream = new FileStream(filePath, FileMode.Open))
-				{
-					var uploadRequest = service.Files.Create(fileMetadata, stream, mimeType);
-					uploadRequest.Fields = "id, name, parents";
+					uploadRequest.Fields = "id, name";
 
 					// Attach the progress callback
-					uploadRequest.ProgressChanged += (progress) =>
+					uploadRequest.ProgressChanged += progress =>
 					{
 						if (progressCallback != null)
 						{
 							if (progress.Status == UploadStatus.Uploading)
 							{
-								// Calculate progress percentage
-								int percentage = (int)((progress.BytesSent * 100) / stream.Length);
+								float percentage = (float)progress.BytesSent / stream.Length * 100;
 								progressCallback(percentage, fileName);
 							}
 						}
@@ -123,8 +109,46 @@ namespace ArqitekUploader
 						throw new Exception($"Upload failed: {uploadResponse.Exception}");
 					}
 				}
+				else
+				{
+					// Prepare metadata
+					var fileMetadata = new Google.Apis.Drive.v3.Data.File
+					{
+						Name = fileName,
+						Parents = folderId != null ? new List<string> { folderId } : null
+					};
+
+					// File does not exist, create a new one
+					var uploadRequest = service.Files.Create(fileMetadata, stream, mimeType);
+
+					uploadRequest.Fields = "id, name, parents";
+
+					// Attach the progress callback
+					uploadRequest.ProgressChanged += progress =>
+					{
+						if (progressCallback != null)
+						{
+							if (progress.Status == UploadStatus.Uploading)
+							{
+								float percentage = (float)progress.BytesSent / stream.Length * 100;
+								progressCallback(percentage, fileName);
+							}
+						}
+					};
+
+					// Start the upload
+					var uploadResponse = uploadRequest.Upload();
+
+					if (uploadResponse.Status == UploadStatus.Failed)
+					{
+						throw new Exception($"Upload failed: {uploadResponse.Exception}");
+					}
+				}
+
+				
 			});
 		}
+
 
 		public Drive()
 		{
@@ -138,7 +162,7 @@ namespace ArqitekUploader
 		{
 			var req = service.Files.List();
 			var files = req.Execute().Files;
-			return (from file in files where file is not null select file).ToArray();
+			return [.. (from file in files where file is not null select file)];
 		}
 
 		public string FindItem(string itemName, bool isFolder = false, bool createIfNotFound = false)
@@ -206,17 +230,13 @@ namespace ArqitekUploader
 
 				// Get the file stream from Google Drive
 				var request = service.Files.Get(fileId);
-				using (var memoryStream = new MemoryStream())
-				{
-					await request.DownloadAsync(memoryStream);
-					memoryStream.Seek(0, SeekOrigin.Begin);
+				using var memoryStream = new MemoryStream();
+				await request.DownloadAsync(memoryStream);
+				memoryStream.Seek(0, SeekOrigin.Begin);
 
-					// Read the file contents as a string
-					using (var reader = new StreamReader(memoryStream))
-					{
-						return await reader.ReadToEndAsync();
-					}
-				}
+				// Read the file contents as a string
+				using var reader = new StreamReader(memoryStream);
+				return await reader.ReadToEndAsync();
 			}
 			catch (Exception ex)
 			{
